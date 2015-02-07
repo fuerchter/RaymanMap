@@ -3,6 +3,7 @@ while true do
 	Issues:
 	-lag (try making 16x16 image and scaling up to 32x32)
 	-camera doesn't catch up (wrong memory value, reading from previous frame?)
+	-draws blocks to the left and right of the screen
 	]]--
 	if mainmemory.readbyte(0x1cee81)==1 --don't do anything if we are not in a level
 		then
@@ -91,6 +92,9 @@ while true do
 				then
 					gui.drawImage("slippery right small 2.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
 				--
+				elseif blockType>=0x60 and blockType<0x64
+				then
+					gui.drawImage("instant mortal.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
 				elseif blockType>=0x64 and blockType<0x78
 				then
 					gui.drawImage("falling.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
