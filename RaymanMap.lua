@@ -24,7 +24,7 @@ while true do
 	-lag (try making 16x16 image and scaling up to 32x32)
 	-camera doesn't catch up (wrong memory value, reading from previous frame?)
 	]]--
-	if mainmemory.readbyte(0x1cee81)==1 -- only draw if in a level"
+	if mainmemory.readbyte(0x1cee81)==1 --only draw if in a level
 		then	
 		--map data
 		width=mainmemory.read_u16_le(0x1f4430); --in tiles
