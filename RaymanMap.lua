@@ -1,6 +1,6 @@
 --initialize camera data
-xCameraPrevious=xCamera;
-yCameraPrevious=yCamera;
+xCameraPrevious=0;
+yCameraPrevious=0;
 
 while true do
 	--[[
