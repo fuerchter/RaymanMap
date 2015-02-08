@@ -1,16 +1,31 @@
+--initialize camera / window values
+windowWidth = 800;
+windowHeight= 480;
+borderLeftWidth  = 86;
+borderRightWidth = 74; --yes, border left > border right
+
+tileWidthCamera =16;
+tileHeightCamera=16;
+xTiles=20; --20 tiles are on camera each time (horizontally)
+yTiles=15;
+
+--on screen sizes
+tileWidthScreen =32;
+tileHeightScreen=32;
+
 --initialize camera data
 xCameraPrevious=0;
 yCameraPrevious=0;
+
 
 while true do
 	--[[
 	Issues:
 	-lag (try making 16x16 image and scaling up to 32x32)
 	-camera doesn't catch up (wrong memory value, reading from previous frame?)
-	-draws blocks to the left and right of the screen
 	]]--
-	if mainmemory.readbyte(0x1cee81)==1 --don't do anything if we are not in a level
-		then
+	if mainmemory.readbyte(0x1cee81)==1 --only draw if in a level
+		then	
 		--map data
 		width=mainmemory.read_u16_le(0x1f4430); --in tiles
 		start=mainmemory.read_u32_le(0x1f4438)-0x80000000;
@@ -18,19 +33,10 @@ while true do
 		--camera data
 		xCamera=mainmemory.read_u16_le(0x1f84b8);
 		yCamera=mainmemory.read_u16_le(0x1f84c0);
-
+		
 		--interpolate camera (will be added to x, y coordinates)
 		xCameraI=(xCamera - xCameraPrevious)*3; -- 3 is just a magic constant that happened to work for me
 		yCameraI=(yCamera - yCameraPrevious)*3; -- ... but it might not work elsewhere
-		
-		tileWidthCamera =16;
-		tileHeightCamera=16;
-		xTiles=20; --20 tiles are on camera each time (horizontally)
-		yTiles=15;
-		
-		--on screen sizes
-		tileWidthScreen =32;
-		tileHeightScreen=32;
 		
 		row=start+width*2*(math.floor(yCamera/tileHeightCamera))+2*(math.floor(xCamera/tileWidthCamera)); --16 camera indices per tile
 
@@ -42,8 +48,8 @@ while true do
 		do
 			for x=0, xTiles
 			do
-				xPos=x*tileWidthScreen+86-xSplitTile + xCameraI; --86 is the border width
-				yPos=y*tileHeightScreen  -ySplitTile + yCameraI;
+				xPos=x*tileWidthScreen+borderLeftWidth-xSplitTile+xCameraI;
+				yPos=y*tileHeightScreen               -ySplitTile+yCameraI;
 				blockType=mainmemory.readbyte(row+1+x*2);
 				if blockType>=0x08 and blockType<0x0c
 				then
@@ -115,6 +121,10 @@ while true do
 			end
 			row=row+width*2;
 		end
+		
+		--shitty fix for drawing over the screen border
+		gui.drawRectangle(0, 0, borderLeftWidth, windowHeight, 0xFF000000, 0xFF000000);
+		gui.drawRectangle(windowWidth - borderRightWidth, 0, borderRightWidth, windowHeight, 0x00000000, 0xFF000000);
 	end
 	-- previous camera data to determine the camera speed
 	xCameraPrevious=xCamera;
