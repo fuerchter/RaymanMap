@@ -1,3 +1,7 @@
+--initialize camera data
+xCameraPrevious=0;
+yCameraPrevious=0;
+
 while true do
 	--[[
 	Issues:
@@ -14,17 +18,23 @@ while true do
 		--camera data
 		xCamera=mainmemory.read_u16_le(0x1f84b8);
 		yCamera=mainmemory.read_u16_le(0x1f84c0);
-		tileWidthCamera=16;
+
+		--interpolate camera (will be added to x, y coordinates)
+		xCameraI=(xCamera - xCameraPrevious)*3; -- 3 is just a magic constant that happened to work for me
+		yCameraI=(yCamera - yCameraPrevious)*3; -- ... but it might not work elsewhere
+		
+		tileWidthCamera =16;
 		tileHeightCamera=16;
 		xTiles=20; --20 tiles are on camera each time (horizontally)
 		yTiles=15;
+		
 		--on screen sizes
-		tileWidthScreen=32;
+		tileWidthScreen =32;
 		tileHeightScreen=32;
 		
 		row=start+width*2*(math.floor(yCamera/tileHeightCamera))+2*(math.floor(xCamera/tileWidthCamera)); --16 camera indices per tile
 
-		xSplitTile=((xCamera%tileWidthCamera)/tileWidthCamera)*tileWidthScreen;
+		xSplitTile=((xCamera%tileWidthCamera) /tileWidthCamera) *tileWidthScreen;
 		ySplitTile=((yCamera%tileHeightCamera)/tileHeightCamera)*tileHeightScreen;
 		
 		--tile positions
@@ -32,8 +42,8 @@ while true do
 		do
 			for x=0, xTiles
 			do
-				xPos=x*tileWidthScreen+86-xSplitTile; --86 is the border width
-				yPos=y*tileHeightScreen-ySplitTile;
+				xPos=x*tileWidthScreen+86-xSplitTile + xCameraI; --86 is the border width
+				yPos=y*tileHeightScreen  -ySplitTile + yCameraI;
 				blockType=mainmemory.readbyte(row+1+x*2);
 				if blockType>=0x08 and blockType<0x0c
 				then
@@ -106,5 +116,10 @@ while true do
 			row=row+width*2;
 		end
 	end
+	-- previous camera data to determine the camera speed
+	xCameraPrevious=xCamera;
+	yCameraPrevious=yCamera;
+	
+	-- advance frame
 	emu.frameadvance();
 end
