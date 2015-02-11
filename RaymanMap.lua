@@ -19,11 +19,6 @@ yCameraPrevious=0;
 
 
 while true do
-	--[[
-	Issues:
-	-lag (try making 16x16 image and scaling up to 32x32)
-	-camera doesn't catch up (wrong memory value, reading from previous frame?)
-	]]--
 	if mainmemory.readbyte(0x1cee81)==1 --only draw if in a level
 		then	
 		--map data
