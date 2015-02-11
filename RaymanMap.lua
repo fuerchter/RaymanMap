@@ -19,11 +19,6 @@ yCameraPrevious=0;
 
 
 while true do
-	--[[
-	Issues:
-	-lag (try making 16x16 image and scaling up to 32x32)
-	-camera doesn't catch up (wrong memory value, reading from previous frame?)
-	]]--
 	if mainmemory.readbyte(0x1cee81)==1 --only draw if in a level
 		then	
 		--map data
@@ -123,7 +118,7 @@ while true do
 		end
 		
 		--shitty fix for drawing over the screen border
-		gui.drawRectangle(0, 0, borderLeftWidth, windowHeight, 0xFF000000, 0xFF000000);
+		gui.drawRectangle(0, 0, borderLeftWidth, windowHeight, 0x00000000, 0xFF000000);
 		gui.drawRectangle(windowWidth - borderRightWidth, 0, borderRightWidth, windowHeight, 0x00000000, 0xFF000000);
 	end
 	-- previous camera data to determine the camera speed
