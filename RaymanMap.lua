@@ -1,3 +1,52 @@
+-- Initialize functions
+getBlockName = function(hex)
+	if hex>=0x08 and hex<0x0c     then
+		return "left";
+	elseif hex>=0x0c and hex<0x10 then
+		return "right";
+	elseif hex>=0x10 and hex<0x14 then
+		return "left small 1";
+	elseif hex>=0x14 and hex<0x18 then
+		return "left small 2";
+	elseif hex>=0x18 and hex<0x1c then
+		return "right small 1";
+	elseif hex>=0x1c and hex<0x20 then
+		return "right small 2";
+	elseif hex>=0x20 and hex<0x24 then
+		return "death";
+	elseif hex>=0x24 and hex<0x28 then
+		return "bounce";
+	elseif hex>=0x28 and hex<0x30 then
+		return "water";
+	elseif hex>=0x30 and hex<0x38 then
+		return "climb";
+	elseif hex>=0x38 and hex<0x3c then
+		return "pass down";
+	elseif hex>=0x3c and hex<0x48 then
+		return "full";
+	elseif hex>=0x48 and hex<0x4c then
+		return "slippery left";
+	elseif hex>=0x4c and hex<0x50 then
+		return "slippery right";
+	elseif hex>=0x50 and hex<0x54 then
+		return "slippery left small 1";
+	elseif hex>=0x54 and hex<0x58 then
+		return "slippery left small 2";
+	elseif hex>=0x58 and hex<0x5c then
+		return "slippery right small 1";
+	elseif hex>=0x5c and hex<0x60 then
+		return "slippery right small 2";
+	elseif hex>=0x60 and hex<0x64 then
+		return "instant mortal";
+	elseif hex>=0x64 and hex<0x78 then
+		return "falling";
+	elseif hex>=0x78 and hex<0x80 then
+		return "slippery";
+	else 
+		return "";
+	end
+end
+
 --initialize camera / window values
 windowWidth = 800;
 windowHeight= 480;
@@ -17,6 +66,8 @@ tileHeightScreen=32;
 xCameraPrevious=0;
 yCameraPrevious=0;
 
+--initialize verbose state
+verboseMode=false;
 
 while true do
 	if mainmemory.readbyte(0x1cee81)==1 --only draw if in a level
@@ -46,72 +97,15 @@ while true do
 				xPos=x*tileWidthScreen+borderLeftWidth-xSplitTile+xCameraI;
 				yPos=y*tileHeightScreen               -ySplitTile+yCameraI;
 				blockType=mainmemory.readbyte(row+1+x*2);
-				if blockType>=0x08 and blockType<0x0c
-				then
-					gui.drawImage("left.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x0c and blockType<0x10
-				then
-					gui.drawImage("right.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x10 and blockType<0x14
-				then
-					gui.drawImage("left small 1.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x14 and blockType<0x18
-				then
-					gui.drawImage("left small 2.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x18 and blockType<0x1c
-				then
-					gui.drawImage("right small 1.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x1c and blockType<0x20
-				then
-					gui.drawImage("right small 2.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				--
-				elseif blockType>=0x20 and blockType<0x24
-				then
-					gui.drawImage("death.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x24 and blockType<0x28
-				then
-					gui.drawImage("bounce.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x28 and blockType<0x30
-				then
-					gui.drawImage("water.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x30 and blockType<0x38
-				then
-					gui.drawImage("climb.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x38 and blockType<0x3c
-				then
-					gui.drawImage("pass down.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x3c and blockType<0x48
-				then
-					gui.drawImage("full.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				--
-				elseif blockType>=0x48 and blockType<0x4c
-				then
-					gui.drawImage("slippery left.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x4c and blockType<0x50
-				then
-					gui.drawImage("slippery right.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x50 and blockType<0x54
-				then
-					gui.drawImage("slippery left small 1.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x54 and blockType<0x58
-				then
-					gui.drawImage("slippery left small 2.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x58 and blockType<0x5c
-				then
-					gui.drawImage("slippery right small 1.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x5c and blockType<0x60
-				then
-					gui.drawImage("slippery right small 2.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				--
-				elseif blockType>=0x60 and blockType<0x64
-				then
-					gui.drawImage("instant mortal.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x64 and blockType<0x78
-				then
-					gui.drawImage("falling.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
-				elseif blockType>=0x78 and blockType<0x80
-				then
-					gui.drawImage("slippery.png", xPos, yPos, tileWidthScreen, tileHeightScreen);
+				if verboseMode==false
+					then
+					if getBlockName(blockType) ~= "" then
+						gui.drawImage(getBlockName(blockType) .. ".png", xPos, yPos, tileWidthScreen, tileHeightScreen);
+					end
+				else
+					if blockType ~= 0x00 then
+						gui.drawText(xPos, yPos, bizstring.hex(blockType), 0xFFFFFFFF, 14);
+					end 
 				end
 			end
 			row=row+width*2;
