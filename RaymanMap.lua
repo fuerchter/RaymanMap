@@ -1,6 +1,8 @@
 -- Initialize functions
 getBlockName = function(hex)
-	if hex>=0x08 and hex<0x0c     then
+	if hex==0x04 then
+		return "reactionary"
+	elseif hex>=0x08 and hex<0x0c then
 		return "left";
 	elseif hex>=0x0c and hex<0x10 then
 		return "right";
@@ -69,9 +71,14 @@ yCameraPrevious=0;
 --initialize verbose state
 verboseMode=false;
 
+form=forms.newform("RaymanMap");
+verboseBox=forms.checkbox(form, "Verbose Mode", 5, 5);
+
 while true do
 	if mainmemory.readbyte(0x1cee81)==1 --only draw if in a level
-		then	
+	then
+		verboseMode=forms.ischecked(verboseBox);
+		
 		--map data
 		width=mainmemory.read_u16_le(0x1f4430); --in tiles
 		start=mainmemory.read_u32_le(0x1f4438)-0x80000000;
