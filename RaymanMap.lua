@@ -72,16 +72,14 @@ yCameraPrevious=0;
 verboseMode=false;
 
 form=forms.newform("RaymanMap");
-verboseBox=forms.checkbox(form, "Verbose Mode", 5, 5);
+mapBox=forms.checkbox(form, "Draw map", 5, 0); --TODO: checked by default?!
+eventBox=forms.checkbox(form, "Draw events", 5, 30);
+verboseBox=forms.checkbox(form, "Verbose (map)", 5, 60);
 
 while true do
 	if mainmemory.readbyte(0x1cee81)==1 --only draw if in a level
 	then
 		verboseMode=forms.ischecked(verboseBox);
-		
-		--map data
-		width=mainmemory.read_u16_le(0x1f4430); --in tiles
-		start=mainmemory.read_u32_le(0x1f4438)-0x80000000;
 		
 		--camera data
 		xCamera=mainmemory.read_u16_le(0x1f84b8);
@@ -91,36 +89,66 @@ while true do
 		xCameraI=(xCamera - xCameraPrevious)*3; -- 3 is just a magic constant that happened to work for me
 		yCameraI=(yCamera - yCameraPrevious)*3; -- ... but it might not work elsewhere
 		
-		row=start+width*2*(math.floor(yCamera/tileHeightCamera))+2*(math.floor(xCamera/tileWidthCamera)); --16 camera indices per tile
-
-		xSplitTile=((xCamera%tileWidthCamera) /tileWidthCamera) *tileWidthScreen;
-		ySplitTile=((yCamera%tileHeightCamera)/tileHeightCamera)*tileHeightScreen;
+		--[[ DRAW MAP ]]--
+		--map data
+		width=mainmemory.read_u16_le(0x1f4430); --in tiles
+		start=mainmemory.read_u32_le(0x1f4438)-0x80000000;
 		
-		--tile positions
-		for y=0, yTiles
-		do
-			for x=0, xTiles
+		if forms.ischecked(mapBox)
+		then
+			row=start+width*2*(math.floor(yCamera/tileHeightCamera))+2*(math.floor(xCamera/tileWidthCamera)); --16 camera indices per tile
+
+			xSplitTile=((xCamera%tileWidthCamera) /tileWidthCamera) *tileWidthScreen;
+			ySplitTile=((yCamera%tileHeightCamera)/tileHeightCamera)*tileHeightScreen;
+			
+			--tile positions
+			for y=0, yTiles
 			do
-				xPos=x*tileWidthScreen+borderLeftWidth-xSplitTile+xCameraI;
-				yPos=y*tileHeightScreen               -ySplitTile+yCameraI;
-				blockType=mainmemory.readbyte(row+1+x*2);
-				if verboseMode==false
-					then
-					if getBlockName(blockType) ~= "" then
-						gui.drawImage(getBlockName(blockType) .. ".png", xPos, yPos, tileWidthScreen, tileHeightScreen);
+				for x=0, xTiles
+				do
+					xPos=x*tileWidthScreen+borderLeftWidth-xSplitTile+xCameraI;
+					yPos=y*tileHeightScreen               -ySplitTile+yCameraI;
+					blockType=mainmemory.readbyte(row+1+x*2);
+					if verboseMode==false
+						then
+						if getBlockName(blockType) ~= "" then
+							gui.drawImage(getBlockName(blockType) .. ".png", xPos, yPos, tileWidthScreen, tileHeightScreen);
+						end
+					else
+						if blockType ~= 0x00 then
+							gui.drawText(xPos, yPos, bizstring.hex(blockType), 0xFFFFFFFF, 14);
+						end 
 					end
-				else
-					if blockType ~= 0x00 then
-						gui.drawText(xPos, yPos, bizstring.hex(blockType), 0xFFFFFFFF, 14);
-					end 
 				end
+				row=row+width*2;
 			end
-			row=row+width*2;
+			
+			--shitty fix for drawing over the screen border
+			gui.drawRectangle(0, 0, borderLeftWidth, windowHeight, 0x00000000, 0xFF000000);
+			gui.drawRectangle(windowWidth - borderRightWidth, 0, borderRightWidth, windowHeight, 0x00000000, 0xFF000000);
 		end
 		
-		--shitty fix for drawing over the screen border
-		gui.drawRectangle(0, 0, borderLeftWidth, windowHeight, 0x00000000, 0xFF000000);
-		gui.drawRectangle(windowWidth - borderRightWidth, 0, borderRightWidth, windowHeight, 0x00000000, 0xFF000000);
+		--[[ DRAW EVENTS ]]--
+		if forms.ischecked(eventBox)
+		then
+			startEv=mainmemory.read_u32_le(0x1d7ae0)-0x80000000;
+			size=mainmemory.readbyte(0x1d7ae4);
+			activeIndex=0x1e5428;
+			for i=0, size-1
+			do
+				current=startEv+112*i;
+				xAdr=current+28;
+				xEv=mainmemory.read_s16_le(xAdr);
+				yEv=mainmemory.read_s16_le(xAdr+2);
+				textColor="Red";
+				if(i==mainmemory.readbyte(activeIndex))
+				then
+					textColor="Green";
+					activeIndex=activeIndex+2;
+				end
+				gui.text(client.transformPointX((xEv-xCamera+xCameraI)*2+borderLeftWidth), client.transformPointY((yEv-yCamera+yCameraI)*2), i, null, textColor);
+			end
+		end
 	end
 	-- previous camera data to determine the camera speed
 	xCameraPrevious=xCamera;
