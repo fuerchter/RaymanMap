@@ -50,7 +50,7 @@ getBlockName = function(hex)
 end
 
 --initialize camera / window values
-windowWidth = 800;
+windowWidth = 800; --TODO: replace with bufferwidth/height?
 windowHeight= 480;
 borderLeftWidth  = 86;
 borderRightWidth = 74; --yes, border left > border right
@@ -134,20 +134,40 @@ while true do
 			startEv=mainmemory.read_u32_le(0x1d7ae0)-0x80000000;
 			size=mainmemory.readbyte(0x1d7ae4);
 			activeIndex=0x1e5428;
+			
+			acString="offscreen (active): ";
 			for i=0, size-1
 			do
 				current=startEv+112*i;
 				xAdr=current+28;
 				xEv=mainmemory.read_s16_le(xAdr);
 				yEv=mainmemory.read_s16_le(xAdr+2);
-				textColor="Red";
-				if(i==mainmemory.readbyte(activeIndex))
+				
+				active=false;
+				if i==mainmemory.readbyte(activeIndex)
 				then
-					textColor="Green";
+					active=true;
 					activeIndex=activeIndex+2;
 				end
-				gui.text(client.transformPointX((xEv-xCamera+xCameraI)*2+borderLeftWidth), client.transformPointY((yEv-yCamera+yCameraI)*2), i, null, textColor);
+				
+				xScreen=client.transformPointX((xEv-xCamera+xCameraI)*2+borderLeftWidth)
+				yScreen=client.transformPointY((yEv-yCamera+yCameraI)*2);
+				if xScreen>=0 and yScreen>=0 and xScreen<client.screenwidth() and yScreen<client.screenheight() --on screen?
+				then
+					if active
+					then
+						gui.text(xScreen, yScreen, i, null, "green");
+					else
+						gui.text(xScreen, yScreen, i, null, "red");
+					end
+				else
+					if active
+					then
+						acString=acString .. i .. ", ";
+					end
+				end
 			end
+			gui.text(0, 0, acString, null, "green");
 		end
 	end
 	-- previous camera data to determine the camera speed
