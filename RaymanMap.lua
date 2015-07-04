@@ -49,6 +49,8 @@ getBlockName = function(hex)
 	end
 end
 
+--TODO: separate variables by how many times they needs to be refreshed?
+
 --initialize camera / window values
 windowWidth = 800; --TODO: replace with bufferwidth/height?
 windowHeight= 480;
@@ -139,7 +141,7 @@ while true do
 			for i=0, size-1
 			do
 				current=startEv+112*i;
-				xAdr=current+28;
+				xAdr=current+0x1c;
 				xEv=mainmemory.read_s16_le(xAdr);
 				yEv=mainmemory.read_s16_le(xAdr+2);
 				
@@ -152,6 +154,56 @@ while true do
 				
 				xScreen=client.transformPointX((xEv-xCamera+xCameraI)*2+borderLeftWidth)
 				yScreen=client.transformPointY((yEv-yCamera+yCameraI)*2);
+				
+				--TODO: replace shifts with multiplication (since bytes are used this should be fine)
+				off0=mainmemory.read_u32_le(current)-0x80000000;
+				off4=mainmemory.read_u32_le(current+4)-0x80000000;
+				off54=mainmemory.readbyte(current+0x54);
+				off55=mainmemory.readbyte(current+0x55);
+				
+				anim2=off4+bit.lshift(bit.lshift(off54, 1)+off54, 2);
+				
+				animAdr=mainmemory.read_u32_le(anim2)-0x80000000;--+bit.lshift(off55, 2);
+				
+				--static hitbox
+				--[[shAdr=mainmemory.readbyte(current+0x48);
+				if shAdr~=0
+				then
+					hitboxAdr=0x1c1a94+bit.lshift(shAdr, 3);
+					xOff=mainmemory.read_s16_le(hitboxAdr);
+					yOff=mainmemory.read_s16_le(hitboxAdr+2);
+					width=mainmemory.readbyte(hitboxAdr+4);
+					height=mainmemory.readbyte(hitboxAdr+5);
+					
+					off55Calc=bit.lshift(mainmemory.read_u16_le(anim2+8)*off55, 2);
+					hitOff7=bit.arshift(bit.lshift(mainmemory.readbyte(hitboxAdr+7), 0x10), 0xe);
+					anim2Adr=mainmemory.read_u32_le(anim2)-0x80000000+off55Calc+hitOff7;
+					
+					anim2Off3=mainmemory.readbyte(anim2Adr+3);
+					anim1Adr=off0+bit.lshift(bit.lshift(anim2Off3, 2)+anim2Off3, 2);
+					if current==0xaeba0
+					then
+						--console.writeline(bizstring.hex(anim2Adr) .. " " .. bizstring.hex(anim1Adr));
+					end
+					
+					xFinal=mainmemory.readbyte(anim2Adr+1)+bit.band(mainmemory.readbyte(anim1Adr+9), 0xf)+xEv+xOff;
+					yFinal=mainmemory.readbyte(anim2Adr+2)+bit.rshift(mainmemory.readbyte(anim1Adr+9), 0x4)+yEv+xOff;
+					
+					gui.drawRectangle((xEv+xOff-xCamera)*2+borderLeftWidth, (yEv+yOff-yCamera)*2, width*2, height*2);
+					gui.drawRectangle((xFinal-xCamera)*2+borderLeftWidth+xCameraI, (yFinal-yCamera)*2+yCameraI, width*2, height*2, "red");
+				end]]--
+				
+				--animated hitbox
+				if off55~=0
+				then
+					ahAdr=mainmemory.read_u32_le(anim2+4)-0x80000000+bit.lshift(off55, 2);
+					axOff=mainmemory.readbyte(ahAdr);
+					ayOff=mainmemory.readbyte(ahAdr+1);
+					aWidth=mainmemory.readbyte(ahAdr+2);
+					aHeight=mainmemory.readbyte(ahAdr+3);
+					gui.drawRectangle((xEv+axOff-xCamera)*2+borderLeftWidth+xCameraI, (yEv+ayOff-yCamera)*2+yCameraI, aWidth*2, aHeight*2, "red");
+				end
+				
 				if xScreen>=0 and yScreen>=0 and xScreen<client.screenwidth() and yScreen<client.screenheight() --on screen?
 				then
 					if active
@@ -166,6 +218,8 @@ while true do
 						acString=acString .. i .. ", ";
 					end
 				end
+				
+				
 			end
 			gui.text(0, 0, acString, null, "green");
 		end
