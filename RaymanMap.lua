@@ -48,10 +48,16 @@ local getBlockName = function(hex)
 	end
 end
 
+local gameToScreen = function(x, y) --calculates screen position (as table) from the game position it is given
+	x=(x-camPos.x)*2+borderWidth.left+camI.x;
+	y=(y-camPos.y)*2+camI.y;
+	return {x=x, y=y};
+end
+
 --TODO: parameter description
-local drawMap=function(winSize, borderWidth, tSizeCam, tCount, tSizeScreen, camPos, camI, verboseMode)
+local drawMap=function(winSize, tSizeCam, tCount, tSizeScreen, verboseMode)
 	local width=memory.read_u16_le(0x1f4430); --in tiles
-	local start=memory.read_u32_le(0x1f4438)-0x80000000;
+	local start=memory.read_u32_le(0x1f4430+8)-adr;
 	
 	local row=start+width*2*(math.floor(camPos.y/tSizeCam.height))+2*(math.floor(camPos.x/tSizeCam.width)); --16 camera indices per tile
 
@@ -87,17 +93,99 @@ local drawMap=function(winSize, borderWidth, tSizeCam, tCount, tSizeScreen, camP
 	gui.drawRectangle(winSize.width - borderWidth.right, 0, borderWidth.right, winSize.height, 0x00000000, 0xFF000000);
 end
 
+--!!!TODO: split/cleanup
+local drawEvents=function(current, pos, staticHitbox)	
+	--TODO: replace shifts with multiplication (since bytes are used this should be fine)
+	local off4=memory.read_u32_le(current+4)-adr;
+	local off54=memory.readbyte(current+0x54);
+	local off55=memory.readbyte(current+0x55);
+	
+	anim2=off4+bit.lshift(bit.lshift(off54, 1)+off54, 2); --used in both
+	
+	--TODO: UNUSED?
+	animAdr=memory.read_u32_le(anim2)-adr;--+bit.lshift(off55, 2);
+	
+	--static hitbox
+	local sHitbox=memory.readbyte(current+0x48);
+	if sHitbox~=0
+	then
+		local off0=memory.read_u32_le(current)-adr;
+		
+		local hitboxAdr=staticHitbox+bit.lshift(sHitbox, 3); --TODO: source?
+		local off={x=memory.read_s16_le(hitboxAdr), y=memory.read_s16_le(hitboxAdr+2)};
+		local width=memory.readbyte(hitboxAdr+4);
+		local height=memory.readbyte(hitboxAdr+5);
+		
+		--regular position calculation
+		local regular=gameToScreen(pos.x+off.x, pos.y+off.y);
+		gui.drawRectangle(regular.x, regular.y, width*2, height*2);
+		
+		--position calculation occurrs at 1478fc
+		local off55Calc=bit.lshift(memory.read_u16_le(anim2+8)*off55, 2);
+		local hitOff7=bit.arshift(bit.lshift(memory.readbyte(hitboxAdr+7), 0x10), 0xe);
+		local anim2Adr=memory.read_u32_le(anim2)-adr+off55Calc+hitOff7;
+		
+		local anim2Off3=memory.readbyte(anim2Adr+3);
+		local anim1Adr=off0+bit.lshift(bit.lshift(anim2Off3, 2)+anim2Off3, 2);
+		
+		local final={};
+		final.x=memory.readbyte(anim2Adr+1)+bit.band(memory.readbyte(anim1Adr+9), 0xf)+pos.x+off.x;
+		final.y=memory.readbyte(anim2Adr+2)+bit.rshift(memory.readbyte(anim1Adr+9), 0x4)+pos.y+off.x;
+		final=gameToScreen(final.x, final.y);
+		gui.drawRectangle(final.x, final.y, width*2, height*2, "blue");
+	end
+	
+	--animated hitbox
+	if off55~=0
+	then
+		ahAdr=memory.read_u32_le(anim2+4)-adr+bit.lshift(off55, 2);
+		axOff=memory.readbyte(ahAdr);
+		ayOff=memory.readbyte(ahAdr+1);
+		aWidth=memory.readbyte(ahAdr+2);
+		aHeight=memory.readbyte(ahAdr+3);
+		
+		local aPos=gameToScreen(pos.x+axOff, pos.y+ayOff);
+		gui.drawRectangle(aPos.x, aPos.y, aWidth*2, aHeight*2, "red");
+	end
+end
+
+local drawStaticHitbox=function()
+	--return x, y, width, height...
+end
+
+local drawIndex=function(index, screenPos, active, acString)	
+	if screenPos.x>=0 and screenPos.y>=0 and screenPos.x<client.screenwidth() and screenPos.y<client.screenheight() --on screen?
+	then
+		if active
+		then
+			gui.text(screenPos.x, screenPos.y, index, null, "green");
+		else
+			gui.text(screenPos.x, screenPos.y, index, null, "red");
+		end
+	else
+		if active
+		then
+			acString=acString .. index .. ", ";
+		end
+	end
+	return acString;
+end
+
 --TODO: separate variables by how many times they needs to be refreshed?
+--split by update/draw?
 --better form management (ask adelikat?)
 
+--borderWidth, camPos, camI and adr are global because they are read frequently!
 --initialize camera / window values (assuming window is not resized)
 local winSize={width=800, height=480}; --only needed to fix drawing past the game window
-local borderWidth={left=86, right=74}; --yes, border left > border right
+borderWidth={left=86, right=74}; --yes, border left > border right
 
 --initialize camera data
-local camPos={x=0, y=0};
+camPos={x=0, y=0};
 local camPrevious={x=0, y=0};
-local camI={x=0, y=0};
+camI={x=0, y=0};
+
+adr=0x80000000;
 
 --PERSISTENT MAP/TILE DATA
 local tSizeCam={width=16, height=16}; --tile size in game coordinates
@@ -107,6 +195,10 @@ local tSizeScreen={width=32, height=32};
 
 --initialize verbose state
 local verboseMode=false;
+
+--PERSISTENT EVENT DATA
+local evSize=112;
+local staticHitbox=0x1c1a94;
 
 local form=forms.newform("RaymanMap");
 local mapBox=forms.checkbox(form, "Draw map", 5, 0); --TODO: checked by default?!
@@ -127,99 +219,37 @@ while true do
 		
 		if forms.ischecked(mapBox)
 		then
-			drawMap(winSize, borderWidth, tSizeCam, tCount, tSizeScreen, camPos, camI, verboseMode);
+			drawMap(winSize, tSizeCam, tCount, tSizeScreen, verboseMode);
 		end
 		
-		--[[ DRAW EVENTS ]]--
 		if forms.ischecked(eventBox)
 		then
-			startEv=memory.read_u32_le(0x1d7ae0)-0x80000000;
-			size=memory.readbyte(0x1d7ae4);
-			activeIndex=0x1e5428;
+			local startEv=memory.read_u32_le(0x1d7ae0)-adr;
+			local size=memory.readbyte(0x1d7ae0+4); --number of events
 			
-			acString="offscreen (active): ";
-			for i=0, size-1
+			local activeIndex=0x1e5428; --current index in the list of active events located here
+			local acString="offscreen (active): ";
+			
+			for i=0, size-1 --loop through events
 			do
-				current=startEv+112*i;
-				xAdr=current+0x1c;
-				xEv=memory.read_s16_le(xAdr);
-				yEv=memory.read_s16_le(xAdr+2);
+				local current=startEv+evSize*i;
 				
-				active=false;
+				local pos={x=memory.read_s16_le(current+0x1c), y=memory.read_s16_le(current+0x1c+2)};
+				
+				--checks if the event is in the active list
+				local active=false;
 				if i==memory.readbyte(activeIndex)
 				then
 					active=true;
 					activeIndex=activeIndex+2;
 				end
 				
-				xScreen=client.transformPointX((xEv-camPos.x+camI.x)*2+borderWidth.left)
-				yScreen=client.transformPointY((yEv-camPos.y+camI.y)*2);
+				local gamePos=gameToScreen(pos.x, pos.y);
+				local screenPos={x=client.transformPointX(gamePos.x), y=client.transformPointY(gamePos.y)}; --translate game position to screen position
+				--draws onscreen events as such, returns offscreen events into acString
+				acString=drawIndex(i, screenPos, active, acString);
 				
-				--TODO: replace shifts with multiplication (since bytes are used this should be fine)
-				off0=memory.read_u32_le(current)-0x80000000;
-				off4=memory.read_u32_le(current+4)-0x80000000;
-				off54=memory.readbyte(current+0x54);
-				off55=memory.readbyte(current+0x55);
-				
-				anim2=off4+bit.lshift(bit.lshift(off54, 1)+off54, 2);
-				
-				animAdr=memory.read_u32_le(anim2)-0x80000000;--+bit.lshift(off55, 2);
-				
-				--static hitbox
-				--[[shAdr=memory.readbyte(current+0x48);
-				if shAdr~=0
-				then
-					hitboxAdr=0x1c1a94+bit.lshift(shAdr, 3);
-					xOff=memory.read_s16_le(hitboxAdr);
-					yOff=memory.read_s16_le(hitboxAdr+2);
-					width=memory.readbyte(hitboxAdr+4);
-					height=memory.readbyte(hitboxAdr+5);
-					
-					off55Calc=bit.lshift(memory.read_u16_le(anim2+8)*off55, 2);
-					hitOff7=bit.arshift(bit.lshift(memory.readbyte(hitboxAdr+7), 0x10), 0xe);
-					anim2Adr=memory.read_u32_le(anim2)-0x80000000+off55Calc+hitOff7;
-					
-					anim2Off3=memory.readbyte(anim2Adr+3);
-					anim1Adr=off0+bit.lshift(bit.lshift(anim2Off3, 2)+anim2Off3, 2);
-					if current==0xaeba0
-					then
-						--console.writeline(bizstring.hex(anim2Adr) .. " " .. bizstring.hex(anim1Adr));
-					end
-					
-					xFinal=memory.readbyte(anim2Adr+1)+bit.band(memory.readbyte(anim1Adr+9), 0xf)+xEv+xOff;
-					yFinal=memory.readbyte(anim2Adr+2)+bit.rshift(memory.readbyte(anim1Adr+9), 0x4)+yEv+xOff;
-					
-					gui.drawRectangle((xEv+xOff-camPos.x)*2+borderWidth.left, (yEv+yOff-camPos.y)*2, width*2, height*2);
-					gui.drawRectangle((xFinal-camPos.x)*2+borderWidth.left+camI.x, (yFinal-camPos.y)*2+camI.y, width*2, height*2, "red");
-				end]]--
-				
-				--animated hitbox
-				if off55~=0
-				then
-					ahAdr=memory.read_u32_le(anim2+4)-0x80000000+bit.lshift(off55, 2);
-					axOff=memory.readbyte(ahAdr);
-					ayOff=memory.readbyte(ahAdr+1);
-					aWidth=memory.readbyte(ahAdr+2);
-					aHeight=memory.readbyte(ahAdr+3);
-					gui.drawRectangle((xEv+axOff-camPos.x)*2+borderWidth.left+camI.x, (yEv+ayOff-camPos.y)*2+camI.y, aWidth*2, aHeight*2, "red");
-				end
-				
-				if xScreen>=0 and yScreen>=0 and xScreen<client.screenwidth() and yScreen<client.screenheight() --on screen?
-				then
-					if active
-					then
-						gui.text(xScreen, yScreen, i, null, "green");
-					else
-						gui.text(xScreen, yScreen, i, null, "red");
-					end
-				else
-					if active
-					then
-						acString=acString .. i .. ", ";
-					end
-				end
-				
-				
+				drawEvents(current, pos, staticHitbox);
 			end
 			gui.text(0, 0, acString, null, "green");
 		end
