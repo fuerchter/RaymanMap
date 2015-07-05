@@ -48,13 +48,14 @@ local getBlockName = function(hex)
 	end
 end
 
-local gameToScreen = function(x, y) --calculates screen position (as table) from the game position it is given
+--calculates screen position (as table) from the game position it is given
+local gameToScreen = function(x, y)
 	x=(x-camPos.x)*2+borderWidth.left+camI.x;
 	y=(y-camPos.y)*2+camI.y;
 	return {x=x, y=y};
 end
 
---TODO: parameter description
+--draws block types by going through the list of blocks, converting them to screen coordinates and checking their type
 local drawMap=function(winSize, tSizeCam, tCount, tSizeScreen, verboseMode)
 	local width=memory.read_u16_le(0x1f4430); --in tiles
 	local start=memory.read_u32_le(0x1f4430+8)-adr;
@@ -93,66 +94,62 @@ local drawMap=function(winSize, tSizeCam, tCount, tSizeScreen, verboseMode)
 	gui.drawRectangle(winSize.width - borderWidth.right, 0, borderWidth.right, winSize.height, 0x00000000, 0xFF000000);
 end
 
---!!!TODO: split/cleanup
-local drawEvents=function(current, pos, staticHitbox)	
+--gets the hitbox located in the sHitboxStart list 
+local getStaticHitbox=function(current, pos, sHitboxStart, aniCounter, ani2base)	
 	--TODO: replace shifts with multiplication (since bytes are used this should be fine)
-	local off4=memory.read_u32_le(current+4)-adr;
-	local off54=memory.readbyte(current+0x54);
-	local off55=memory.readbyte(current+0x55);
+	--NOT USED - previous idea to calculate position
+	local aniAdr=memory.read_u32_le(ani2base)-adr;--+bit.lshift(aniCounter, 2);
 	
-	anim2=off4+bit.lshift(bit.lshift(off54, 1)+off54, 2); --used in both
-	
-	--TODO: UNUSED?
-	animAdr=memory.read_u32_le(anim2)-adr;--+bit.lshift(off55, 2);
-	
-	--static hitbox
-	local sHitbox=memory.readbyte(current+0x48);
-	if sHitbox~=0
+	local hIndex=memory.readbyte(current+0x48); --event's byte that is used to get hitbox
+	if hIndex~=0
 	then
 		local off0=memory.read_u32_le(current)-adr;
 		
-		local hitboxAdr=staticHitbox+bit.lshift(sHitbox, 3); --TODO: source?
+		local hitboxAdr=sHitboxStart+bit.lshift(hIndex, 3); --TODO: source?
 		local off={x=memory.read_s16_le(hitboxAdr), y=memory.read_s16_le(hitboxAdr+2)};
 		local width=memory.readbyte(hitboxAdr+4);
 		local height=memory.readbyte(hitboxAdr+5);
 		
-		--regular position calculation
+		--NOT USED - regular position calculation
 		local regular=gameToScreen(pos.x+off.x, pos.y+off.y);
-		gui.drawRectangle(regular.x, regular.y, width*2, height*2);
+		--gui.drawRectangle(regular.x, regular.y, width*2, height*2);
 		
-		--position calculation occurrs at 1478fc
-		local off55Calc=bit.lshift(memory.read_u16_le(anim2+8)*off55, 2);
-		local hitOff7=bit.arshift(bit.lshift(memory.readbyte(hitboxAdr+7), 0x10), 0xe);
-		local anim2Adr=memory.read_u32_le(anim2)-adr+off55Calc+hitOff7;
+		--position calculation
+		--source: 1478fc
+		local ani2Counter=bit.lshift(memory.read_u16_le(ani2base+8)*aniCounter, 2);
+		local ani2HitOff7=bit.arshift(bit.lshift(memory.readbyte(hitboxAdr+7), 0x10), 0xe);
 		
-		local anim2Off3=memory.readbyte(anim2Adr+3);
-		local anim1Adr=off0+bit.lshift(bit.lshift(anim2Off3, 2)+anim2Off3, 2);
+		local ani2=memory.read_u32_le(ani2base)-adr+ani2Counter+ani2HitOff7;
+		local ani2SpriteIndex=memory.readbyte(ani2+3);
+		
+		local ani1=off0+bit.lshift(bit.lshift(ani2SpriteIndex, 2)+ani2SpriteIndex, 2);
 		
 		local final={};
-		final.x=memory.readbyte(anim2Adr+1)+bit.band(memory.readbyte(anim1Adr+9), 0xf)+pos.x+off.x;
-		final.y=memory.readbyte(anim2Adr+2)+bit.rshift(memory.readbyte(anim1Adr+9), 0x4)+pos.y+off.x;
+		final.x=memory.readbyte(ani2+1)+bit.band(memory.readbyte(ani1+9), 0xf)+pos.x+off.x; --both ani1, ani2 and the static hitbox coordinates have influence
+		final.y=memory.readbyte(ani2+2)+bit.rshift(memory.readbyte(ani1+9), 0x4)+pos.y+off.x;
 		final=gameToScreen(final.x, final.y);
-		gui.drawRectangle(final.x, final.y, width*2, height*2, "blue");
+		return {x=final.x, y=final.y, width=width*2, height=height*2};
+	--[[else		not sure if i want to explicitly state this?
+		return nil;]]--
 	end
-	
-	--animated hitbox
-	if off55~=0
+end
+
+--gets the hitbox from off4
+local getAnimatedHitbox=function(pos, aniCounter, ani2base)
+	if aniCounter~=0 --why?
 	then
-		ahAdr=memory.read_u32_le(anim2+4)-adr+bit.lshift(off55, 2);
-		axOff=memory.readbyte(ahAdr);
-		ayOff=memory.readbyte(ahAdr+1);
-		aWidth=memory.readbyte(ahAdr+2);
-		aHeight=memory.readbyte(ahAdr+3);
-		
-		local aPos=gameToScreen(pos.x+axOff, pos.y+ayOff);
-		gui.drawRectangle(aPos.x, aPos.y, aWidth*2, aHeight*2, "red");
+		--source: 140804
+		local hitboxAdr=memory.read_u32_le(ani2base+4)-adr+bit.lshift(aniCounter, 2);
+		local width=memory.readbyte(hitboxAdr+2);
+		local height=memory.readbyte(hitboxAdr+3);
+		local final=gameToScreen(pos.x+memory.readbyte(hitboxAdr), pos.y+memory.readbyte(hitboxAdr+1)); --reads x and y offset
+		return {x=final.x, y=final.y, width=width*2, height=height*2};
+	--[[else		not sure if i want to explicitly state this?
+		return nil;]]--
 	end
 end
 
-local drawStaticHitbox=function()
-	--return x, y, width, height...
-end
-
+--draws the index of the current event. green if it's active, red otherwise
 local drawIndex=function(index, screenPos, active, acString)	
 	if screenPos.x>=0 and screenPos.y>=0 and screenPos.x<client.screenwidth() and screenPos.y<client.screenheight() --on screen?
 	then
@@ -171,9 +168,7 @@ local drawIndex=function(index, screenPos, active, acString)
 	return acString;
 end
 
---TODO: separate variables by how many times they needs to be refreshed?
---split by update/draw?
---better form management (ask adelikat?)
+--TODO: better form management (ask adelikat?)
 
 --borderWidth, camPos, camI and adr are global because they are read frequently!
 --initialize camera / window values (assuming window is not resized)
@@ -198,7 +193,7 @@ local verboseMode=false;
 
 --PERSISTENT EVENT DATA
 local evSize=112;
-local staticHitbox=0x1c1a94;
+local sHitboxStart=0x1c1a94; --list of static hitboxes
 
 local form=forms.newform("RaymanMap");
 local mapBox=forms.checkbox(form, "Draw map", 5, 0); --TODO: checked by default?!
@@ -224,6 +219,7 @@ while true do
 		
 		if forms.ischecked(eventBox)
 		then
+			--TODO: drawEvents function?
 			local startEv=memory.read_u32_le(0x1d7ae0)-adr;
 			local size=memory.readbyte(0x1d7ae0+4); --number of events
 			
@@ -235,6 +231,23 @@ while true do
 				local current=startEv+evSize*i;
 				
 				local pos={x=memory.read_s16_le(current+0x1c), y=memory.read_s16_le(current+0x1c+2)};
+				
+				--draw hitboxes
+				local off4=memory.read_u32_le(current+4)-adr;
+				local aniIndex=memory.readbyte(current+0x54);
+				local aniCounter=memory.readbyte(current+0x55);
+				local ani2base=off4+bit.lshift(bit.lshift(aniIndex, 1)+aniIndex, 2);
+				
+				local h=getStaticHitbox(current, pos, sHitboxStart, aniCounter, ani2base);
+				if h~=nil
+				then
+					gui.drawRectangle(h.x, h.y, h.width, h.height);
+				end
+				h=getAnimatedHitbox(pos, aniCounter, ani2base);
+				if h~=nil
+				then
+					gui.drawRectangle(h.x, h.y, h.width, h.height, "red");
+				end
 				
 				--checks if the event is in the active list
 				local active=false;
@@ -248,8 +261,6 @@ while true do
 				local screenPos={x=client.transformPointX(gamePos.x), y=client.transformPointY(gamePos.y)}; --translate game position to screen position
 				--draws onscreen events as such, returns offscreen events into acString
 				acString=drawIndex(i, screenPos, active, acString);
-				
-				drawEvents(current, pos, staticHitbox);
 			end
 			gui.text(0, 0, acString, null, "green");
 		end
