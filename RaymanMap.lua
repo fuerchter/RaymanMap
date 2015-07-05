@@ -135,8 +135,8 @@ local getStaticHitbox=function(current, pos, sHitboxStart, aniCounter, ani2base)
 end
 
 --gets the hitbox from off4
-local getAnimatedHitbox=function(pos, aniCounter, ani2base)
-	if aniCounter~=0 --why?
+local getAnimatedHitbox=function(pos, active, aniCounter, ani2base)
+	if active --why is this necessary? seems to be due to an inactive event near the spawn (76 in al1)
 	then
 		--source: 140804
 		local hitboxAdr=memory.read_u32_le(ani2base+4)-adr+bit.lshift(aniCounter, 2);
@@ -169,6 +169,7 @@ local drawIndex=function(index, screenPos, active, acString)
 end
 
 --TODO: better form management (ask adelikat?)
+--allow form to choose between static/animated hitbox
 
 --borderWidth, camPos, camI and adr are global because they are read frequently!
 --initialize camera / window values (assuming window is not resized)
@@ -232,23 +233,6 @@ while true do
 				
 				local pos={x=memory.read_s16_le(current+0x1c), y=memory.read_s16_le(current+0x1c+2)};
 				
-				--draw hitboxes
-				local off4=memory.read_u32_le(current+4)-adr;
-				local aniIndex=memory.readbyte(current+0x54);
-				local aniCounter=memory.readbyte(current+0x55);
-				local ani2base=off4+bit.lshift(bit.lshift(aniIndex, 1)+aniIndex, 2);
-				
-				local h=getStaticHitbox(current, pos, sHitboxStart, aniCounter, ani2base);
-				if h~=nil
-				then
-					gui.drawRectangle(h.x, h.y, h.width, h.height);
-				end
-				h=getAnimatedHitbox(pos, aniCounter, ani2base);
-				if h~=nil
-				then
-					gui.drawRectangle(h.x, h.y, h.width, h.height, "red");
-				end
-				
 				--checks if the event is in the active list
 				local active=false;
 				if i==memory.readbyte(activeIndex)
@@ -261,8 +245,25 @@ while true do
 				local screenPos={x=client.transformPointX(gamePos.x), y=client.transformPointY(gamePos.y)}; --translate game position to screen position
 				--draws onscreen events as such, returns offscreen events into acString
 				acString=drawIndex(i, screenPos, active, acString);
+				
+				--draw hitboxes
+				local off4=memory.read_u32_le(current+4)-adr;
+				local aniIndex=memory.readbyte(current+0x54);
+				local aniCounter=memory.readbyte(current+0x55);
+				local ani2base=off4+bit.lshift(bit.lshift(aniIndex, 1)+aniIndex, 2);
+				
+				local h=getStaticHitbox(current, pos, sHitboxStart, aniCounter, ani2base);
+				if h~=nil
+				then
+					gui.drawRectangle(h.x, h.y, h.width, h.height);
+				end
+				h=getAnimatedHitbox(pos, active, aniCounter, ani2base);
+				if h~=nil
+				then
+					gui.drawRectangle(h.x, h.y, h.width, h.height, "red");
+				end
 			end
-			gui.text(0, 0, acString, null, "green");
+			gui.text(0, 0, acString, null, "green"); --draw acString, since it can't be done during the loop
 		end
 	end
 	-- previous camera data to determine the camera speed
