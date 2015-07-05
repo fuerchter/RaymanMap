@@ -101,7 +101,7 @@ local getStaticHitbox=function(current, pos, sHitboxStart, aniCounter, ani2base)
 	local aniAdr=memory.read_u32_le(ani2base)-adr;--+bit.lshift(aniCounter, 2);
 	
 	local hIndex=memory.readbyte(current+0x48); --event's byte that is used to get hitbox
-	if hIndex~=0
+	if hIndex~=0 --SHOULD NOT BE HERE!
 	then
 		local off0=memory.read_u32_le(current)-adr;
 		
@@ -123,6 +123,18 @@ local getStaticHitbox=function(current, pos, sHitboxStart, aniCounter, ani2base)
 		local ani2SpriteIndex=memory.readbyte(ani2+3);
 		
 		local ani1=off0+bit.lshift(bit.lshift(ani2SpriteIndex, 2)+ani2SpriteIndex, 2);
+		
+		--OFF0 (ani1) hitbox test
+		--1: use regular ani2 address! (instead of ani2Counter, ani2HitOff7)
+		--2: regular ani2 add sra(sll(off5f, 0x10), 0xe)
+		--[[local size={width=memory.readbyte(ani1+7), height=memory.readbyte(ani1+8)};
+		if current==0xAFC40
+		then
+			console.writeline(bizstring.hex(ani1) .. " " .. bizstring.hex(ani2) .. " " .. bizstring.hex(ani2base));
+		end
+		local newPos=gameToScreen(pos.x, pos.y);
+		gui.drawRectangle(newPos.x, newPos.y, size.width*2, size.height*2);]]--
+		--OFF0 test end
 		
 		local final={};
 		final.x=memory.readbyte(ani2+1)+bit.band(memory.readbyte(ani1+9), 0xf)+pos.x+off.x; --both ani1, ani2 and the static hitbox coordinates have influence
@@ -170,6 +182,7 @@ end
 
 --TODO: better form management (ask adelikat?)
 --allow form to choose between static/animated hitbox
+--interpolation not only for camera but for event as well???
 
 --borderWidth, camPos, camI and adr are global because they are read frequently!
 --initialize camera / window values (assuming window is not resized)
@@ -252,11 +265,12 @@ while true do
 				local aniCounter=memory.readbyte(current+0x55);
 				local ani2base=off4+bit.lshift(bit.lshift(aniIndex, 1)+aniIndex, 2);
 				
-				local h=getStaticHitbox(current, pos, sHitboxStart, aniCounter, ani2base);
+				local h;
+				--[[h=getStaticHitbox(current, pos, sHitboxStart, aniCounter, ani2base);
 				if h~=nil
 				then
 					gui.drawRectangle(h.x, h.y, h.width, h.height);
-				end
+				end]]--
 				h=getAnimatedHitbox(pos, active, aniCounter, ani2base);
 				if h~=nil
 				then
