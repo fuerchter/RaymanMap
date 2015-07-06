@@ -50,8 +50,8 @@ end
 
 --calculates screen position (as table) from the game position it is given
 local gameToScreen = function(x, y)
-	x=(x-camPos.x)*2+borderWidth.left+camI.x;
-	y=(y-camPos.y)*2+camI.y;
+	x=(x-camPos.x)*2+borderWidth.left;--+camI.x;
+	y=(y-camPos.y)*2;--+camI.y;
 	return {x=x, y=y};
 end
 
@@ -72,8 +72,8 @@ local drawMap=function(winSize, tSizeCam, tCount, tSizeScreen, verboseMode)
 		for x=0, tCount.x
 		do
 			local pos={};
-			pos.x=x*tSizeScreen.width+borderWidth.left-splitTile.x+camI.x;
-			pos.y=y*tSizeScreen.height               -splitTile.y+camI.y;
+			pos.x=x*tSizeScreen.width+borderWidth.left-splitTile.x;--+camI.x;
+			pos.y=y*tSizeScreen.height               -splitTile.y;--+camI.y;
 			local blockType=memory.readbyte(row+1+x*2);
 			if verboseMode==false
 				then
@@ -102,9 +102,7 @@ local getStaticHitbox=function(current, pos, sHitboxStart, aniCounter, ani2base)
 	
 	local hIndex=memory.readbyte(current+0x48); --event's byte that is used to get hitbox
 	if hIndex~=0 --SHOULD NOT BE HERE!
-	then
-		local off0=memory.read_u32_le(current)-adr;
-		
+	then		
 		local hitboxAdr=sHitboxStart+bit.lshift(hIndex, 3); --TODO: source?
 		local off={x=memory.read_s16_le(hitboxAdr), y=memory.read_s16_le(hitboxAdr+2)};
 		local width=memory.readbyte(hitboxAdr+4);
@@ -122,6 +120,7 @@ local getStaticHitbox=function(current, pos, sHitboxStart, aniCounter, ani2base)
 		local ani2=memory.read_u32_le(ani2base)-adr+ani2Counter+ani2HitOff7;
 		local ani2SpriteIndex=memory.readbyte(ani2+3);
 		
+		local off0=memory.read_u32_le(current)-adr;
 		local ani1=off0+bit.lshift(bit.lshift(ani2SpriteIndex, 2)+ani2SpriteIndex, 2);
 		
 		--OFF0 (ani1) hitbox test
@@ -140,9 +139,10 @@ local getStaticHitbox=function(current, pos, sHitboxStart, aniCounter, ani2base)
 		final.x=memory.readbyte(ani2+1)+bit.band(memory.readbyte(ani1+9), 0xf)+pos.x+off.x; --both ani1, ani2 and the static hitbox coordinates have influence
 		final.y=memory.readbyte(ani2+2)+bit.rshift(memory.readbyte(ani1+9), 0x4)+pos.y+off.x;
 		final=gameToScreen(final.x, final.y);
+
 		return {x=final.x, y=final.y, width=width*2, height=height*2};
-	--[[else		not sure if i want to explicitly state this?
-		return nil;]]--
+	else
+		return nil;
 	end
 end
 
@@ -156,8 +156,8 @@ local getAnimatedHitbox=function(pos, active, aniCounter, ani2base)
 		local height=memory.readbyte(hitboxAdr+3);
 		local final=gameToScreen(pos.x+memory.readbyte(hitboxAdr), pos.y+memory.readbyte(hitboxAdr+1)); --reads x and y offset
 		return {x=final.x, y=final.y, width=width*2, height=height*2};
-	--[[else		not sure if i want to explicitly state this?
-		return nil;]]--
+	else
+		return nil;
 	end
 end
 
@@ -211,8 +211,10 @@ local sHitboxStart=0x1c1a94; --list of static hitboxes
 
 local form=forms.newform("RaymanMap");
 local mapBox=forms.checkbox(form, "Draw map", 5, 0); --TODO: checked by default?!
-local eventBox=forms.checkbox(form, "Draw events", 5, 30);
-local verboseBox=forms.checkbox(form, "Verbose (map)", 5, 60);
+local verboseBox=forms.checkbox(form, "Verbose", 15, 30);
+local eventBox=forms.checkbox(form, "Draw events", 5, 60);
+local rayBox=forms.checkbox(form, "Rayman hitbox", 15, 90);
+local aniBox=forms.checkbox(form, "Animated hitbox", 15, 120);
 
 memory.usememorydomain("MainRAM");
 
@@ -233,7 +235,7 @@ while true do
 		
 		if forms.ischecked(eventBox)
 		then
-			--TODO: drawEvents function?
+			--TODO: drawEvents function?, interpolation?
 			local startEv=memory.read_u32_le(0x1d7ae0)-adr;
 			local size=memory.readbyte(0x1d7ae0+4); --number of events
 			
@@ -266,18 +268,32 @@ while true do
 				local ani2base=off4+bit.lshift(bit.lshift(aniIndex, 1)+aniIndex, 2);
 				
 				local h;
+				--TODO: find proper offset (disable because of that...)
 				--[[h=getStaticHitbox(current, pos, sHitboxStart, aniCounter, ani2base);
 				if h~=nil
 				then
 					gui.drawRectangle(h.x, h.y, h.width, h.height);
 				end]]--
-				h=getAnimatedHitbox(pos, active, aniCounter, ani2base);
-				if h~=nil
+				if forms.ischecked(aniBox)
 				then
-					gui.drawRectangle(h.x, h.y, h.width, h.height, "red");
+					h=getAnimatedHitbox(pos, active, aniCounter, ani2base);
+					if h~=nil
+					then
+						gui.drawRectangle(h.x, h.y, h.width, h.height, "red");
+					end
 				end
 			end
 			gui.text(0, 0, acString, null, "green"); --draw acString, since it can't be done during the loop
+			
+			--RAYMAN'S HITBOX
+			if forms.ischecked(rayBox)
+			then
+				local off={x=memory.read_s16_le(0x1f9a10), y=memory.read_s16_le(0x1f9a28)};
+				local final=gameToScreen(off.x, off.y);
+				local width=memory.readbyte(0x1f9a08);
+				local height=memory.readbyte(0x1f84c8);
+				gui.drawRectangle(final.x, final.y, width*2, height*2);
+			end
 		end
 	end
 	-- previous camera data to determine the camera speed
