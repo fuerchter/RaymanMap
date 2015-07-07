@@ -147,14 +147,24 @@ local getStaticHitbox=function(current, pos, sHitboxStart, aniCounter, ani2base)
 end
 
 --gets the hitbox from off4
-local getAnimatedHitbox=function(pos, active, aniCounter, ani2base)
+local getAnimatedHitbox=function(current, pos, active, aniCounter, ani2base)
 	if active --why is this necessary? seems to be due to an inactive event near the spawn (76 in al1)
 	then
 		--source: 140804
 		local hitboxAdr=memory.read_u32_le(ani2base+4)-adr+bit.lshift(aniCounter, 2);
+		local off={x=memory.readbyte(hitboxAdr), y=memory.readbyte(hitboxAdr+1)};
 		local width=memory.readbyte(hitboxAdr+2);
 		local height=memory.readbyte(hitboxAdr+3);
-		local final=gameToScreen(pos.x+memory.readbyte(hitboxAdr), pos.y+memory.readbyte(hitboxAdr+1)); --reads x and y offset
+		--source: 6d loaded and processed at 147374
+		local flipped=bit.band(memory.readbyte(current+0x6d), 0x40);
+		local final;
+		if flipped==0x40
+		then
+			final=gameToScreen(pos.x+bit.lshift(memory.readbyte(current+0x52), 1)-off.x-width, pos.y+off.y); --flipping only affects x coordinate, nothing else
+		else
+			final=gameToScreen(pos.x+off.x, pos.y+off.y);
+		end
+			
 		return {x=final.x, y=final.y, width=width*2, height=height*2};
 	else
 		return nil;
@@ -180,8 +190,7 @@ local drawIndex=function(index, screenPos, active, acString)
 	return acString;
 end
 
---TODO: better form management (ask adelikat?)
---allow form to choose between static/animated hitbox
+--TODO: allow form to choose between static/animated hitbox
 --interpolation not only for camera but for event as well???
 
 --borderWidth, camPos, camI and adr are global because they are read frequently!
@@ -276,7 +285,7 @@ while true do
 				end]]--
 				if forms.ischecked(aniBox)
 				then
-					h=getAnimatedHitbox(pos, active, aniCounter, ani2base);
+					h=getAnimatedHitbox(current, pos, active, aniCounter, ani2base);
 					if h~=nil
 					then
 						gui.drawRectangle(h.x, h.y, h.width, h.height, "red");
