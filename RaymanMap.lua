@@ -1,3 +1,9 @@
+--TODO: determine event type (could prove to be hard) and draw proper hitboxes (check with designer)
+--rayman's flipped hitbox
+--move away from forms...?
+--allow form to choose between static/animated hitbox
+--interpolation not only for camera but for event as well???
+
 local getBlockName = function(hex)
 	if hex==0x04 then
 		return "reactionary"
@@ -190,9 +196,6 @@ local drawIndex=function(index, screenPos, active, acString)
 	return acString;
 end
 
---TODO: allow form to choose between static/animated hitbox
---interpolation not only for camera but for event as well???
-
 --borderWidth, camPos, camI and adr are global because they are read frequently!
 --initialize camera / window values (assuming window is not resized)
 local winSize={width=800, height=480}; --only needed to fix drawing past the game window
@@ -221,8 +224,8 @@ local sHitboxStart=0x1c1a94; --list of static hitboxes
 local form=forms.newform("RaymanMap");
 local mapBox=forms.checkbox(form, "Draw map", 5, 0); --TODO: checked by default?!
 local verboseBox=forms.checkbox(form, "Verbose", 15, 30);
-local eventBox=forms.checkbox(form, "Draw events", 5, 60);
-local rayBox=forms.checkbox(form, "Rayman hitbox", 15, 90);
+local rayBox=forms.checkbox(form, "Rayman hitbox", 5, 60);
+local eventBox=forms.checkbox(form, "Draw events", 5, 90);
 local aniBox=forms.checkbox(form, "Animated hitbox", 15, 120);
 
 memory.usememorydomain("MainRAM");
@@ -242,9 +245,19 @@ while true do
 			drawMap(winSize, tSizeCam, tCount, tSizeScreen, verboseMode);
 		end
 		
+		--RAYMAN'S HITBOX
+		if forms.ischecked(rayBox)
+		then
+			local off={x=memory.read_s16_le(0x1f9a10), y=memory.read_s16_le(0x1f9a28)};
+			local final=gameToScreen(off.x, off.y);
+			local width=memory.readbyte(0x1f9a08);
+			local height=memory.readbyte(0x1f84c8);
+			gui.drawRectangle(final.x, final.y, width*2, height*2);
+		end
+
 		if forms.ischecked(eventBox)
 		then
-			--TODO: drawEvents function?, interpolation?
+			--TODO: drawEvents function?
 			local startEv=memory.read_u32_le(0x1d7ae0)-adr;
 			local size=memory.readbyte(0x1d7ae0+4); --number of events
 			
@@ -277,7 +290,7 @@ while true do
 				local ani2base=off4+bit.lshift(bit.lshift(aniIndex, 1)+aniIndex, 2);
 				
 				local h;
-				--TODO: find proper offset (disable because of that...)
+				--TODO: find proper offset (disabled because of that...)
 				--[[h=getStaticHitbox(current, pos, sHitboxStart, aniCounter, ani2base);
 				if h~=nil
 				then
@@ -293,16 +306,6 @@ while true do
 				end
 			end
 			gui.text(0, 0, acString, null, "green"); --draw acString, since it can't be done during the loop
-			
-			--RAYMAN'S HITBOX
-			if forms.ischecked(rayBox)
-			then
-				local off={x=memory.read_s16_le(0x1f9a10), y=memory.read_s16_le(0x1f9a28)};
-				local final=gameToScreen(off.x, off.y);
-				local width=memory.readbyte(0x1f9a08);
-				local height=memory.readbyte(0x1f84c8);
-				gui.drawRectangle(final.x, final.y, width*2, height*2);
-			end
 		end
 	end
 	-- previous camera data to determine the camera speed
